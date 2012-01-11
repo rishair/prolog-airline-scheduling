@@ -1,0 +1,228 @@
+:-  op( 50, xfy, : ).
+
+
+/**
+ * All the available flights
+ */
+timetable(lp1211, columbus, charlotte, 11:10, 12:20, [mon, tue, wed, fri, sun]).
+timetable(lp1212, charlotte, columbus, 13:20, 16:20, [mon, tue, wed, fri, sun]).
+timetable(lp1322, columbus, pittsburgh, 11:30, 12:40, [tue, thu]).
+timetable(lp1323, pittsburgh, columbus, 13:30, 14:40, [tue, thu]).
+timetable(lp1458, roanoke, charlotte, 09:10, 10:00, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1459, charlotte, roanoke, 11:00, 13:50, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1472, columbus, charlotte, 20:30, 21:30, [mon, wed, thu, sat]).
+timetable(lp1473, charlotte, columbus, 16:30, 19:30, [mon, wed, thu, sat]).
+timetable(lp1510, charlotte, roanoke, 08:30, 11:20, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1511, roanoke, charlotte, 12:20, 13:10, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1613, pittsburgh, charlotte, 09:00, 09:40, [mon, tue, wed, thu, fri, sat]).
+timetable(lp1614, charlotte, pittsburgh, 09:10, 11:45, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1620, pittsburgh, roanoke, 07:55, 08:45, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1621, roanoke, pittsburgh, 09:25, 10:15, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1623, roanoke, pittsburgh, 12:45, 13:35, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp1805, charlotte, pittsburgh, 14:45, 17:20, [mon, tue, wed, thu, fri, sun]).
+timetable(lp1806, pittsburgh, charlotte, 16:10, 16:55, [mon, tue, wed, thu, fri, sun]).
+timetable(lp4732, charlotte, raleigh, 09:40, 10:50, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp4733, raleigh, charlotte, 09:40, 10:50, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp4752, charlotte, raleigh, 11:40, 12:50, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp4773, raleigh, charlotte, 13:40, 14:50, [mon, tue, wed, thu, fri, sat, sun]).
+timetable(lp4822, charlotte, raleigh, 18:40, 19:50, [mon, tue, wed, thu, fri]).
+timetable(lp4833, raleigh, charlotte, 19:40, 20:50, [mon, tue, wed, thu, fri]).
+
+
+/**
+ * absolute_time(?Time : int:int, ?Minutes : int)
+ * 
+ * True if Time (H:M) is equivalent to Minutes when hours are
+ * converted to minutes.
+ *
+ * @param Time In the form int:int, the time to use
+ * @param Time An integer showing an representation of the time in just minutes
+ * 
+ */
+absolute_time(H : M, (H * 60) + M).
+
+
+
+
+
+
+/**
+ * valid_time(+Time : int:int)
+ *
+ * True if the given time is bounded to two integers
+ *
+ * @param Time The time to test
+ *
+ * Examples:
+ * ?- valid_time(H:M).
+ * fail
+ * ?- valid_time(3:3).
+ * true
+ */
+valid_time(H:M) :- nonvar(H), nonvar(M), number(H), number(M).
+
+
+
+
+
+/**
+ * time_before(+TimeOne : int:int, +TimeTwo : int:int)
+ * time_before(-TimeOne : int:int, +TimeTwo : int:int)
+ * time_before(+TimeOne : int:int, -TimeTwo : int:int)
+ *
+ * True if TimeOne is less than TimeTwo, if TimeOne or TimeTwo is bound
+ * then the it gets set equal to the other.
+ *
+ * @param TimeOne The first time to compare against (lower)
+ * @param TimeTwo The second time to compare against (higher)
+ *
+ * ?- time_before(H:M, 3:30).
+ * [ H = 3, M = 30 ]
+ * ?- time_before(2:20, H:M).
+ * [H = 2, M = 20 ]
+ * ?- time_before(2:20, 3:30).
+ * true
+ * ?- time_before(3:30, 2:20).
+ * fail
+ *
+ */
+time_before(H1:M1, H2:M2) :-
+	valid_time(H1:M1), valid_time(H2:M2) ->
+		(
+			absolute_time(H1 : M1, Time1),
+			absolute_time(H2 : M2, Time2),
+			Time1 =< Time2
+		);
+		(
+			H1 = H2,
+			M1 = M2
+		).
+
+
+
+
+
+/**
+ *
+ * layover_possible(TimeOne : int:int, TimeTwo : int:int)
+ *
+ * True if TimeOne is 45 minutes or more before TimeTwo.
+ *
+ * @param TimeOne The first time, this time should be before TimeTwo
+ * @param TimeTwo The second time, this time should be 45 minutes after TimeTwo
+ *
+ * ?- layover_possible(2:00, 2:45).
+ * true
+ * ?- layover_possible(2:00, 2:44).
+ * fail
+ * ?- layover_possible(2:00, 2:46).
+ * true
+ *
+ */
+layover_possible(H1 : M1, H2 : M2) :-
+	absolute_time(H1 : M1, Time1), 
+	absolute_time(H2 : M2, Time2),
+	time_before(H1 : M1, H2 : M2),
+	Time1 + 45 =< Time2.
+
+
+
+
+
+/*
+ * find_route(?From_City : atom, ?To_City : atom, ?From_Time : int:int, ?To_Time : int:int, ?Day : atom, -Route : list, +Visited : list)
+ *
+ * The helper function for plan_route that takes in all the parameters as well as all the cities
+ * previously visited to prevent circuits in the route. First checks the timetable for any of the
+ * given variables, and makes sure that it's not a direct flight (which is handled by the base
+ * case). Then we make sure that the start time of the matched flight is before the given start
+ * time, or if it's not ground then we set the start time to the start time of the flight found.
+ * Then we make sure that the day is part of the days that the flight is scheduled for. Finally,
+ * we recursively call find_route with the layover city as the From address make sure that the
+ * return value is a possible layover.
+ *
+ * @param From_City The city to fly from ((does not have to be bound and algorithm picks one
+ * 					that fits within the other criteria provided)
+ * @param To_City The city to fly to (does not have to be bound)
+ * @param From_Time The earliest time to start the route (does not have to be bound)
+ * @param To_Time The latest time to end the route (does not have to be bound)
+ * @param Day The day that the flight or series of flights should take place on (does not have
+ * 					to be bound)
+ * @param Routes A list of all the routes that match the criteria provided.
+ * @param Visited A list of cities that have already been visited prior to this flight
+ *
+ */
+find_route(From_City, To_City, From_Time, To_Time, Day, [ Flight | Route], Visited) :-
+	timetable(Flight, From_City, Layover_City, First_Start_Time, First_End_Time, First_Days),
+	Layover_City \= To_City,
+	time_before(From_Time, First_Start_Time),
+	member(Day, First_Days),
+	not(member(Layover_City, Visited)),
+	find_route(Layover_City, To_City, Second_Start_Time, To_Time, Day, Route, [Layover_City | Visited]),
+	layover_possible(First_End_Time, Second_Start_Time).
+
+/**
+ * This is the base case where there's a direct flight from the From_City to the To_City, the flight
+ * is valid as long as it's after the From_Time and before the To_Time and it is within the day
+ * specified.
+ */
+find_route(From_City, To_City, From_Time, To_Time, Day, [Flight], _) :-
+	timetable(Flight, From_City, To_City, Start_Time, End_Time, Days),
+	time_before(From_Time, Start_Time),
+	time_before(End_Time, To_Time),
+	member(Day, Days).
+
+
+
+
+
+
+
+/**
+ *
+ * plan_route(?From_City : atom, ?To_City : atom, ?From_Time : int:int, ?To_Time : int:int, ?Day : atom, -Route : list)
+ *
+ * Takes in an optional amount of criteria to narrow down available flights. However all fields
+ * can be left unbound to return a list of all available flights and connecting flights. We first
+ * check the timetable for any flights that match the criteria and return flights that are direct.
+ * We then check for flights that can complete the route with layovers. Each layover must be 45
+ * minutes after the previous flight lands. Each layover is thoroughly searched until it's shown
+ * that it won't work. All possibilities of ungrounded variables are returned as well as the route.
+ *
+ * @param From_City The city to fly from ((does not have to be bound and algorithm picks one
+ * 					that fits within the other criteria provided)
+ * @param To_City The city to fly to (does not have to be bound)
+ * @param From_Time The earliest time to start the route (does not have to be bound)
+ * @param To_Time The latest time to end the route (does not have to be bound)
+ * @param Day The day that the flight or series of flights should take place on (does not have
+ * 					to be bound)
+ * @param Routes A list of all the routes that match the criteria provided.
+ *
+ * ?- plan_route( pittsburgh, columbus, From_Time, 15:00, tue, Route ).
+ * [ From_Time = 13:30, Route = [lp1323] ]
+ * ?- plan_route( roanoke, columbus, From_Time, To_Time, mon, Route ).
+ * [ From_Time = 9:10, To_Time = 16:20, Route = [lp1458, lp1212] ],
+ * [ From_Time = 9:10, To_Time = 19:30, Route = [lp1458, lp1473] ],
+ * [ From_Time = 12:20, To_Time = 19:30, Route = [lp1511, lp1473] ]
+ * ?- plan_route(From_City, columbus, 16:30, To_Time, Day, Route).
+ * [ From_City = charlotte, To_Time = 19:30, Day = mon, Route = [lp1473] ],
+ * [ From_City = charlotte, To_Time = 19:30, Day = wed, Route = [lp1473] ],
+ * [ From_City = charlotte, To_Time = 19:30, Day = thu, Route = [lp1473] ],
+ * [ From_City = charlotte, To_Time = 19:30, Day = sat, Route = [lp1473] ]
+ * ?- plan_route(columbus, To_City, 18:00, To_Time, wed, Route).
+ * [ To_City = charlotte, To_Time = 21:30, Route = [lp1472] ]
+ * ?- plan_route(From_City, To_City, From_Time, To_Time, Day, [lp1472]).
+ * [ From_City = columbus, To_City = charlotte, From_Time = 20:30, To_Time = 21:30, Day = mon ],
+ * [ From_City = columbus, To_City = charlotte, From_Time = 20:30, To_Time = 21:30, Day = wed ],
+ * [ From_City = columbus, To_City = charlotte, From_Time = 20:30, To_Time = 21:30, Day = thu ],
+ * [ From_City = columbus, To_City = charlotte, From_Time = 20:30, To_Time = 21:30, Day = sat ]
+ *
+ */
+plan_route( From_City, To_City, From_Time, To_Time, Day, Route) :-
+	find_route(From_City, To_City, From_Time, To_Time, Day, Route, [From_City]).
+
+
+
+
+
+
